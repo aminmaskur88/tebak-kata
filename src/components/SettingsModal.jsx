@@ -37,6 +37,7 @@ export function SettingsModal({
   onChangeVoiceRate,
   // Simulator Props
   onSimulateComment,
+  onSimulateGift,
   currentWord
 }) {
   const [activeTab, setActiveTab] = useState('tiktok'); // 'tiktok' | 'facebook' | 'voice' | 'simulator'
@@ -138,6 +139,17 @@ export function SettingsModal({
     onSimulateComment({
       userName: 'Rina_Pintar',
       message: currentWord.word
+    });
+  };
+
+  // Helper untuk tes kirim gift (langsung buka jawaban!)
+  const handleTestGift = () => {
+    if (!currentWord || !onSimulateGift) return;
+    onSimulateGift({
+      userName: simName.trim() || 'Sultan_TikTok',
+      giftName: 'Mawar Merah 🌹',
+      count: 1,
+      profilePic: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(simName.trim() || 'Sultan_TikTok')}`
     });
   };
 
@@ -468,17 +480,17 @@ export function SettingsModal({
               </div>
 
               {/* Quick Action Test Buttons */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={handleTestNearWord}
                   className="p-3 bg-emerald-950/60 hover:bg-emerald-900/80 border-2 border-emerald-500 text-emerald-200 rounded-2xl text-left transition-all cursor-pointer shadow-md"
                 >
-                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-                    🟢 Tes Mendekati (Hijau)
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-300">
+                    🟢 Mendekati (Hijau)
                   </p>
-                  <p className="text-[11px] text-emerald-400/80 mt-1">
-                    Komentar typo/kurang 1 huruf akan ditulis hijau!
+                  <p className="text-[10px] text-emerald-400/80 mt-1">
+                    Komentar typo ditulis hijau!
                   </p>
                 </button>
 
@@ -487,11 +499,24 @@ export function SettingsModal({
                   onClick={handleTestExactWord}
                   className="p-3 bg-amber-950/60 hover:bg-amber-900/80 border-2 border-amber-500 text-amber-200 rounded-2xl text-left transition-all cursor-pointer shadow-md"
                 >
-                  <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                    🏆 Tes Jawaban Tepat
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                    🏆 Jawaban Tepat
                   </p>
-                  <p className="text-[11px] text-amber-400/80 mt-1">
-                    Selebrasi pemenang + confetti langsung muncul!
+                  <p className="text-[10px] text-amber-400/80 mt-1">
+                    Menang & confetti!
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTestGift}
+                  className="p-3 bg-rose-950/60 hover:bg-rose-900/80 border-2 border-rose-500 text-rose-200 rounded-2xl text-left transition-all cursor-pointer shadow-md"
+                >
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-rose-300">
+                    🎁 Kirim Gift (Buka)
+                  </p>
+                  <p className="text-[10px] text-rose-400/80 mt-1">
+                    Langsung bocorkan jawaban!
                   </p>
                 </button>
               </div>

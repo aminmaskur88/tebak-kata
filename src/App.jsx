@@ -198,22 +198,49 @@ export default function App() {
 
   }, [currentWord, isPaused, nextWord]);
 
-  // Handler Kiriman Hadiah / Gift TikTok
+  // Handler Kiriman Hadiah / Gift TikTok (LANGSUNG BUKA JAWABAN!)
   const handleIncomingGift = useCallback((giftData) => {
+    if (!currentWord) return;
+
+    // 1. Suara & Fanfare Spesial Hadiah
     soundEffects.playCorrectSound();
+    soundEffects.playFanfare();
+
+    // 2. Buka SELURUH huruf pada kata target tebak kata
+    const allIndices = new Set();
+    for (let i = 0; i < currentWord.word.length; i++) {
+      allIndices.add(i);
+    }
+    setRevealedIndices(allIndices);
+
+    // 3. Voice Over Mbak Google mengumumkan jawaban yang terbuka
+    speechService.clearQueue();
     speechService.speakComment({
       userName: giftData.userName,
-      text: `Terima kasih atas kiriman ${giftData.giftName}!`,
-      isNear: false
+      text: `Terima kasih banyak atas kiriman ${giftData.giftName || 'hadiah'}! Jawaban tebak kata ini adalah ${currentWord.word}!`,
+      isExact: true
     });
 
-    // Tambah bonus point untuk pengirim gift
+    // 4. Catat ke feed live chat dengan kartu hadiah berkilau
+    const giftComment = {
+      id: `gift-${Date.now()}-${Math.random()}`,
+      userName: giftData.userName,
+      profilePic: giftData.profilePic,
+      isGift: true,
+      giftName: giftData.giftName || 'Gift',
+      count: giftData.count || 1,
+      revealedAnswer: currentWord.word,
+      timestamp: Date.now()
+    };
+    setComments(prev => [...prev.slice(-39), giftComment]);
+
+    // 5. Tambah bonus poin sultan di leaderboard (+150 PTS)
     setScores(prev => {
       const existing = prev.find(p => p.userName.toLowerCase() === giftData.userName.toLowerCase());
       if (existing) {
         return prev.map(p =>
           p.userName.toLowerCase() === giftData.userName.toLowerCase()
-            ? { ...p, points: p.points + 50 }
+            ? { ...p, points: p.points + 150, wins: p.wins + 1, profilePic: giftData.profilePic || p.profilePic }
             : p
         );
       } else {
@@ -221,14 +248,30 @@ export default function App() {
           ...prev,
           {
             userName: giftData.userName,
-            points: 50,
-            wins: 0,
-            profilePic: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(giftData.userName)}`
+            points: 150,
+            wins: 1,
+            profilePic: giftData.profilePic || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(giftData.userName)}`
           }
         ];
       }
     });
-  }, []);
+
+    // 6. Tampilkan banner selebrasi hadiah & bocoran jawaban
+    setWinner({
+      userName: giftData.userName,
+      profilePic: giftData.profilePic,
+      giftName: giftData.giftName || 'Gift',
+      isGift: true,
+      word: currentWord.word
+    });
+    setIsPaused(true);
+
+    // 7. Otomatis lanjut ke kata berikutnya setelah 6 detik selebrasi
+    setTimeout(() => {
+      nextWord();
+    }, 6000);
+
+  }, [currentWord, nextWord]);
 
   // Setup TikTok Live WebSocket Client
   useEffect(() => {
@@ -519,6 +562,7 @@ export default function App() {
         onChangeVoiceRate={handleChangeVoiceRate}
         // Simulator
         onSimulateComment={handleIncomingComment}
+        onSimulateGift={handleIncomingGift}
         currentWord={currentWord}
       />
     </div>

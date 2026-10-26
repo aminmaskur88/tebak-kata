@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { MessageSquare, Flame, CheckCircle2, AlertCircle } from 'lucide-react';
+import { MessageSquare, Flame, CheckCircle2, Gift } from 'lucide-react';
 
 export function LiveChatFeed({ comments = [] }) {
   const scrollRef = useRef(null);
@@ -36,10 +36,11 @@ export function LiveChatFeed({ comments = [] }) {
           <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs py-8 text-center px-4 font-sans">
             <MessageSquare className="w-8 h-8 text-slate-700 mb-2" />
             <p className="font-semibold text-slate-400">Menunggu komentar penonton...</p>
-            <p className="text-[11px] text-slate-600 mt-1">Komentar Facebook / simulasi akan tampil di sini secara realtime.</p>
+            <p className="text-[11px] text-slate-600 mt-1">Komentar TikTok, Facebook, dan Gift akan tampil di sini secara realtime.</p>
           </div>
         ) : (
           comments.map((comment) => {
+            const isGift = comment.isGift;
             const isNear = comment.isNear;
             const isExact = comment.isExact;
 
@@ -47,7 +48,9 @@ export function LiveChatFeed({ comments = [] }) {
               <div
                 key={comment.id}
                 className={`relative rounded-xl p-2.5 transition-all duration-300 animate-pop border ${
-                  isExact
+                  isGift
+                    ? 'bg-gradient-to-r from-rose-950/95 via-purple-950/90 to-pink-950/85 border-2 border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.6)]'
+                    : isExact
                     ? 'bg-gradient-to-r from-amber-950/90 to-amber-900/80 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.5)]'
                     : isNear
                     ? 'bg-emerald-950/85 border-2 border-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.6)] animate-green-glow'
@@ -65,7 +68,9 @@ export function LiveChatFeed({ comments = [] }) {
                       alt={comment.userName}
                       referrerPolicy="no-referrer"
                       className={`w-6 h-6 rounded-full object-cover border ${
-                        isExact
+                        isGift
+                          ? 'border-rose-400 ring-2 ring-rose-400/60'
+                          : isExact
                           ? 'border-amber-400 ring-2 ring-amber-400/50'
                           : isNear
                           ? 'border-emerald-400 ring-2 ring-emerald-400/50'
@@ -77,7 +82,9 @@ export function LiveChatFeed({ comments = [] }) {
                     />
                     <span
                       className={`text-xs font-bold font-sans truncate max-w-[120px] ${
-                        isExact
+                        isGift
+                          ? 'text-rose-300'
+                          : isExact
                           ? 'text-amber-300'
                           : isNear
                           ? 'text-emerald-300'
@@ -89,14 +96,21 @@ export function LiveChatFeed({ comments = [] }) {
                   </div>
 
                   {/* Badge Status Komentar */}
-                  {isExact && (
+                  {isGift && (
+                    <span className="flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-rose-500 text-white shadow animate-pulse">
+                      <Gift className="w-3 h-3 text-white" />
+                      GIFT SPONSOR!
+                    </span>
+                  )}
+
+                  {!isGift && isExact && (
                     <span className="flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 shadow">
                       <CheckCircle2 className="w-3 h-3" />
                       BENAR!
                     </span>
                   )}
 
-                  {isNear && (
+                  {!isGift && isNear && (
                     <span className="flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950 shadow animate-pulse">
                       <Flame className="w-3 h-3 text-amber-200" />
                       HAMPIR BENAR!
@@ -104,17 +118,21 @@ export function LiveChatFeed({ comments = [] }) {
                   )}
                 </div>
 
-                {/* Isi Pesan Komentar */}
+                {/* Isi Pesan Komentar / Gift */}
                 <p
                   className={`text-sm break-words leading-relaxed pl-8 font-sans ${
-                    isExact
+                    isGift
+                      ? 'text-rose-100 font-bold text-base'
+                      : isExact
                       ? 'text-amber-100 font-bold text-base'
                       : isNear
                       ? 'text-emerald-200 font-bold text-base drop-shadow-[0_1px_6px_rgba(16,185,129,0.8)]'
                       : 'text-slate-200'
                   }`}
                 >
-                  {comment.message}
+                  {isGift 
+                    ? `Mengirim ${comment.giftName}! Jawaban Dibuka: ${comment.revealedAnswer || ''} 🔓`
+                    : comment.message}
                 </p>
 
                 {/* Sub-label informasi jika mendekati */}
