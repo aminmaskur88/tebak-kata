@@ -63,6 +63,7 @@ export function Leaderboard({ scores = [] }) {
                       `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.userName)}`
                     }
                     alt={item.userName}
+                    referrerPolicy="no-referrer"
                     className="w-6 h-6 rounded-full border border-slate-700 object-cover"
                     onError={(e) => {
                       e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.userName)}`;

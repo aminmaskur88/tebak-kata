@@ -57,6 +57,7 @@ export function WinnerCelebration({ winner, targetWord, onDismiss }) {
               `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(winner.userName)}`
             }
             alt={winner.userName}
+            referrerPolicy="no-referrer"
             className="w-16 h-16 rounded-full border-4 border-amber-400 shadow-xl object-cover"
             onError={(e) => {
               e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(winner.userName)}`;

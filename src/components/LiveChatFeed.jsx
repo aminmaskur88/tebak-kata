@@ -63,6 +63,7 @@ export function LiveChatFeed({ comments = [] }) {
                         `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(comment.userName)}`
                       }
                       alt={comment.userName}
+                      referrerPolicy="no-referrer"
                       className={`w-6 h-6 rounded-full object-cover border ${
                         isExact
                           ? 'border-amber-400 ring-2 ring-amber-400/50'
