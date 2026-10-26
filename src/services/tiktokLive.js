@@ -21,6 +21,16 @@ export class TikTokLiveClient {
     this.reconnectTimer = null;
   }
 
+  updateBridgeUrl(newUrl) {
+    if (!newUrl || newUrl === this.wsUrl) return;
+    this.wsUrl = newUrl.trim();
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.connectToBridge();
+  }
+
   connectToBridge() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;

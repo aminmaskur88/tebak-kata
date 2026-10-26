@@ -21,6 +21,8 @@ export function SettingsModal({
   // TikTok Props
   tiktokUsername,
   onSaveTiktokUsername,
+  tiktokWsUrl,
+  onSaveTiktokWsUrl,
   tiktokStatus,
   onConnectTiktok,
   onDisconnectTiktok,
@@ -44,6 +46,7 @@ export function SettingsModal({
   
   // TikTok state
   const [ttUser, setTtUser] = useState(tiktokUsername || '');
+  const [bridgeUrl, setBridgeUrl] = useState(tiktokWsUrl || 'ws://localhost:8081');
 
   // Facebook state
   const [videoId, setVideoId] = useState(fbConfig.liveVideoId || '');
@@ -60,7 +63,8 @@ export function SettingsModal({
 
   useEffect(() => {
     setTtUser(tiktokUsername || '');
-  }, [tiktokUsername]);
+    setBridgeUrl(tiktokWsUrl || 'ws://localhost:8081');
+  }, [tiktokUsername, tiktokWsUrl]);
 
   useEffect(() => {
     setVideoId(fbConfig.liveVideoId || '');
@@ -261,6 +265,28 @@ export function SettingsModal({
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-rose-500 font-sans"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-300 font-sans">
+                      Alamat Bridge WebSocket Server
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">Lokal atau Cloud</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="ws://localhost:8081"
+                    value={bridgeUrl}
+                    onChange={(e) => {
+                      setBridgeUrl(e.target.value);
+                      onSaveTiktokWsUrl(e.target.value);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-rose-500 font-mono"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1 font-sans">
+                    Isi <code>ws://localhost:8081</code> jika bridge berjalan di PC, atau isi URL cloud (misal <code>wss://bridge.onrender.com</code>) jika full online.
+                  </p>
                 </div>
 
                 {/* Status TikTok Bridge */}

@@ -43,9 +43,16 @@ export default function App() {
       return '';
     }
   });
+  const [tiktokWsUrl, setTiktokWsUrl] = useState(() => {
+    try {
+      return localStorage.getItem('tiktok_ws_url') || 'ws://localhost:8081';
+    } catch {
+      return 'ws://localhost:8081';
+    }
+  });
   const [tiktokStatus, setTiktokStatus] = useState({
     status: 'idle',
-    message: 'Bridge offline (Jalankan npm run tiktok)'
+    message: 'Bridge offline (Jalankan npm run tiktok atau isi URL bridge)'
   });
   const tiktokClientRef = useRef(null);
 
@@ -276,7 +283,7 @@ export default function App() {
   // Setup TikTok Live WebSocket Client
   useEffect(() => {
     tiktokClientRef.current = new TikTokLiveClient({
-      wsUrl: 'ws://localhost:8081',
+      wsUrl: tiktokWsUrl,
       onCommentReceived: (comment) => {
         handleIncomingComment(comment);
       },
@@ -295,7 +302,7 @@ export default function App() {
         tiktokClientRef.current.destroy();
       }
     };
-  }, [handleIncomingComment, handleIncomingGift]);
+  }, [handleIncomingComment, handleIncomingGift, tiktokWsUrl]);
 
   // Setup Poller Facebook Live
   useEffect(() => {
@@ -371,6 +378,18 @@ export default function App() {
       localStorage.setItem('tiktok_username', user);
     } catch {
       // ignore
+    }
+  };
+
+  const handleSaveTiktokWsUrl = (url) => {
+    setTiktokWsUrl(url);
+    try {
+      localStorage.setItem('tiktok_ws_url', url);
+    } catch {
+      // ignore
+    }
+    if (tiktokClientRef.current) {
+      tiktokClientRef.current.updateBridgeUrl(url);
     }
   };
 
@@ -546,6 +565,8 @@ export default function App() {
         // TikTok
         tiktokUsername={tiktokUsername}
         onSaveTiktokUsername={handleSaveTiktokUsername}
+        tiktokWsUrl={tiktokWsUrl}
+        onSaveTiktokWsUrl={handleSaveTiktokWsUrl}
         tiktokStatus={tiktokStatus}
         onConnectTiktok={handleConnectTiktok}
         onDisconnectTiktok={handleDisconnectTiktok}
