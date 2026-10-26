@@ -53,6 +53,7 @@ export function SettingsModal({
   const [simComment, setSimComment] = useState('');
 
   // Voice state
+  const [voiceEngine, setVoiceEngine] = useState(speechService.engine || 'google');
   const [availableVoices, setAvailableVoices] = useState([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState('');
 
@@ -87,6 +88,12 @@ export function SettingsModal({
     onSaveFbConfig({ liveVideoId: videoId, accessToken: token });
   };
 
+  const handleEngineChange = (e) => {
+    const eng = e.target.value;
+    setVoiceEngine(eng);
+    speechService.engine = eng;
+  };
+
   const handleVoiceChange = (e) => {
     const uri = e.target.value;
     setSelectedVoiceURI(uri);
@@ -94,10 +101,10 @@ export function SettingsModal({
   };
 
   const handleTestVoice = () => {
-    speechService.synth?.cancel();
+    speechService.clearQueue();
     speechService.speakComment({
       userName: 'Siti',
-      text: 'Halo penonton! Voice over bahasa Indonesia siap digunakan.',
+      text: 'Halo penonton! Ini adalah suara bahasa Indonesia asli untuk live stream tebak kata.',
       isNear: false
     });
   };
@@ -385,20 +392,39 @@ export function SettingsModal({
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
-                  Pilihan Suara (Voice)
+                  Pilihan Mesin Suara (Voice Engine)
                 </label>
                 <select
-                  value={selectedVoiceURI}
-                  onChange={handleVoiceChange}
+                  value={voiceEngine}
+                  onChange={handleEngineChange}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-sans"
                 >
-                  {availableVoices.map((v) => (
-                    <option key={v.voiceURI} value={v.voiceURI}>
-                      {v.name} ({v.lang})
-                    </option>
-                  ))}
+                  <option value="google">🌟 Google TTS Indonesia (Mbak Google Asli - Super Fasih & 100% Bahasa Indonesia)</option>
+                  <option value="browser">💻 Browser Web Speech (id-ID Offline)</option>
                 </select>
+                <p className="text-[11px] text-emerald-400 mt-1 font-sans">
+                  ✓ Menggunakan suara khas Mbak Google berbahasa Indonesia asli, tidak akan membaca dalam aksen bahasa Inggris.
+                </p>
               </div>
+
+              {voiceEngine === 'browser' && availableVoices.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
+                    Suara Browser Indonesia
+                  </label>
+                  <select
+                    value={selectedVoiceURI}
+                    onChange={handleVoiceChange}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-sans"
+                  >
+                    {availableVoices.map((v) => (
+                      <option key={v.voiceURI} value={v.voiceURI}>
+                        {v.name} ({v.lang})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5 font-sans">

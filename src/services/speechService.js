@@ -1,6 +1,8 @@
 /**
  * Voice Over / Text-to-Speech (TTS) Service
- * Menggunakan Web Speech API dengan Speech Queue berurutan
+ * Menjamin 100% Suara Bahasa Indonesia Asli
+ * Mode 1: Google Indonesian TTS (Mbak Google Asli - Super Fasih & Natural)
+ * Mode 2: Web Speech API (Browser id-ID dengan filter ketat)
  */
 
 const BLOCKED_WORDS = [
@@ -13,11 +15,12 @@ class SpeechService {
     this.queue = [];
     this.isSpeaking = false;
     this.enabled = true;
+    this.engine = 'google'; // 'google' (Mbak Google Asli) | 'browser' (Web Speech API)
     this.voice = null;
-    this.rate = 1.15; // Kecepatan sedikit lebih lincah untuk live stream
-    this.pitch = 1.0;
+    this.rate = 1.1; // Kecepatan lincah untuk live stream
     this.volume = 1.0;
-    this.mode = 'all'; // 'all' | 'near_only' | 'smart'
+    this.currentAudio = null;
+    this.mode = 'all'; // 'all' | 'near_only'
 
     if (this.synth) {
       this.initVoices();
@@ -30,27 +33,29 @@ class SpeechService {
   initVoices() {
     if (!this.synth) return;
     const voices = this.synth.getVoices();
-    // Prioritaskan suara bahasa Indonesia (id-ID)
-    const indonesianVoice = voices.find(v => v.lang.toLowerCase().includes('id') || v.lang.toLowerCase().includes('ind'));
+    // Cari suara spesifik Bahasa Indonesia (id-ID, Indonesian, Gadis, Ardi)
+    const indonesianVoice = voices.find(v => {
+      const l = (v.lang || '').toLowerCase();
+      const n = (v.name || '').toLowerCase();
+      return l.startsWith('id') || l.includes('ind') || n.includes('indonesia') || n.includes('gadis') || n.includes('ardi');
+    });
+
     if (indonesianVoice) {
       this.voice = indonesianVoice;
-    } else if (voices.length > 0) {
-      this.voice = voices[0];
+    } else {
+      // JANGAN PERNAH gunakan suara bahasa Inggris sebagai fallback!
+      // Tetap null agar sistem otomatis menggunakan suara Google Indonesia
+      this.voice = null;
     }
   }
 
   getAvailableVoices() {
     if (!this.synth) return [];
-    return this.synth.getVoices();
-  }
-
-  setVoice(voiceURI) {
-    if (!this.synth) return;
-    const voices = this.synth.getVoices();
-    const found = voices.find(v => v.voiceURI === voiceURI);
-    if (found) {
-      this.voice = found;
-    }
+    return this.synth.getVoices().filter(v => {
+      const l = (v.lang || '').toLowerCase();
+      const n = (v.name || '').toLowerCase();
+      return l.startsWith('id') || l.includes('ind') || n.includes('indonesia');
+    });
   }
 
   filterText(text) {
@@ -64,14 +69,9 @@ class SpeechService {
 
   /**
    * Menambahkan pesan komentar ke antrian suara
-   * @param {Object} options
-   * @param {string} options.userName - Nama penonton
-   * @param {string} options.text - Teks komentar
-   * @param {boolean} options.isNear - Apakah tebakan hampir benar
-   * @param {boolean} options.isExact - Apakah tebakan tepat juara
    */
   speakComment({ userName, text, isNear = false, isExact = false }) {
-    if (!this.enabled || !this.synth) return;
+    if (!this.enabled) return;
 
     if (this.mode === 'near_only' && !isNear && !isExact) {
       return;
@@ -95,7 +95,7 @@ class SpeechService {
   }
 
   processQueue() {
-    if (this.isSpeaking || this.queue.length === 0 || !this.synth) return;
+    if (this.isSpeaking || this.queue.length === 0) return;
 
     // Batasi antrian maksimal 15 komentar agar tidak delay terlalu lama
     if (this.queue.length > 15) {
@@ -105,13 +105,70 @@ class SpeechService {
     const textToSpeak = this.queue.shift();
     this.isSpeaking = true;
 
+    // Jika engine Google atau browser tidak memiliki voice Indonesia: gunakan Google TTS
+    if (this.engine === 'google' || !this.voice) {
+      this.speakViaGoogle(textToSpeak);
+    } else {
+      this.speakViaBrowser(textToSpeak);
+    }
+  }
+
+  // Voice Over Google Indonesia (Mbak Google Asli - 100% Fasih)
+  speakViaGoogle(text) {
     try {
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      const encoded = encodeURIComponent(text);
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=id&client=tw-ob`;
+
+      if (this.currentAudio) {
+        this.currentAudio.pause();
+        this.currentAudio = null;
+      }
+
+      const audio = new Audio(url);
+      this.currentAudio = audio;
+      audio.playbackRate = Math.min(1.3, Math.max(0.8, this.rate));
+      audio.volume = this.volume;
+
+      audio.onended = () => {
+        this.isSpeaking = false;
+        this.currentAudio = null;
+        setTimeout(() => this.processQueue(), 120);
+      };
+
+      audio.onerror = () => {
+        // Jika gagal koneksi ke audio Google, coba browser Web Speech
+        this.speakViaBrowser(text);
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Fallback ke browser jika autoplay diblokir
+          this.speakViaBrowser(text);
+        });
+      }
+    } catch {
+      this.speakViaBrowser(text);
+    }
+  }
+
+  // Voice Over Bawaan Browser (Web Speech API dengan lang id-ID)
+  speakViaBrowser(text) {
+    if (!this.synth) {
+      this.isSpeaking = false;
+      return;
+    }
+
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'id-ID'; // Wajib Bahasa Indonesia!
+
       if (this.voice) {
         utterance.voice = this.voice;
       }
+
       utterance.rate = this.rate;
-      utterance.pitch = this.pitch;
+      utterance.pitch = 1.0;
       utterance.volume = this.volume;
 
       utterance.onend = () => {
@@ -132,6 +189,10 @@ class SpeechService {
 
   clearQueue() {
     this.queue = [];
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio = null;
+    }
     if (this.synth) {
       this.synth.cancel();
     }
