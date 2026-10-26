@@ -284,6 +284,7 @@ export default function App() {
   useEffect(() => {
     tiktokClientRef.current = new TikTokLiveClient({
       wsUrl: tiktokWsUrl,
+      initialUsername: tiktokUsername,
       onCommentReceived: (comment) => {
         handleIncomingComment(comment);
       },
@@ -302,7 +303,7 @@ export default function App() {
         tiktokClientRef.current.destroy();
       }
     };
-  }, [handleIncomingComment, handleIncomingGift, tiktokWsUrl]);
+  }, [handleIncomingComment, handleIncomingGift, tiktokWsUrl, tiktokUsername]);
 
   // Setup Poller Facebook Live
   useEffect(() => {
@@ -483,6 +484,20 @@ export default function App() {
             </span>
           </div>
         </div>
+
+        {/* Notifikasi Otomatis Status Koneksi Bridge */}
+        {tiktokStatus.status === 'mixed_content_warning' && (
+          <div className="mb-2 p-2 bg-amber-950/90 border border-amber-500/80 rounded-xl text-[11px] text-amber-200 font-sans flex items-center justify-between gap-1 shadow-md animate-pop">
+            <span>⚠️ <strong>Izin Laptop Diperlukan di Vercel:</strong> Klik ikon gembok 🔒 di URL Chrome ➔ <em>Site settings</em> ➔ Ubah <strong>Insecure content</strong> ke <strong>Allow</strong>, lalu refresh!</span>
+          </div>
+        )}
+
+        {tiktokStatus.status === 'bridge_connected' && (
+          <div className="mb-2 p-1.5 bg-emerald-950/80 border border-emerald-500/60 rounded-xl text-[11px] text-emerald-300 font-sans flex items-center justify-center gap-1.5 animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>🟢 Jembatan Laptop Terdeteksi Otomatis! Menghubungkan ke TikTok...</span>
+          </div>
+        )}
 
         {/* Layout Mode Responsive */}
         {layoutMode === 'portrait' ? (

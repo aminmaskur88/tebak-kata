@@ -1,24 +1,28 @@
 /**
  * TikTok Live Client Service
- * Menghubungkan game frontend ke WebSocket bridge lokal (ws://localhost:8081)
+ * Deteksi otomatis localhost:8081 dan 127.0.0.1:8081
+ * Auto-connect saat JALANKAN_TIKTOK.bat aktif
  */
 
 export class TikTokLiveClient {
   constructor({ 
     wsUrl = 'ws://localhost:8081', 
+    initialUsername = '',
     onCommentReceived = () => {}, 
     onGiftReceived = () => {},
     onStatusChange = () => {} 
   }) {
     this.wsUrl = wsUrl;
+    this.username = initialUsername.replace(/^@/, '').trim();
     this.onCommentReceived = onCommentReceived;
     this.onGiftReceived = onGiftReceived;
     this.onStatusChange = onStatusChange;
     this.ws = null;
-    this.username = '';
     this.isConnectedToBridge = false;
     this.autoReconnect = true;
     this.reconnectTimer = null;
+    this.endpoints = ['ws://localhost:8081', 'ws://127.0.0.1:8081'];
+    this.currentEndpointIndex = 0;
   }
 
   updateBridgeUrl(newUrl) {
@@ -36,17 +40,23 @@ export class TikTokLiveClient {
       return;
     }
 
+    // Tentukan URL yang dicoba (prioritas URL custom, atau fallback localhost / 127.0.0.1)
+    let targetUrl = this.wsUrl;
+    if (this.wsUrl.includes('localhost') || this.wsUrl.includes('127.0.0.1')) {
+      targetUrl = this.endpoints[this.currentEndpointIndex % this.endpoints.length];
+    }
+
     try {
-      this.ws = new WebSocket(this.wsUrl);
+      this.ws = new WebSocket(targetUrl);
 
       this.ws.onopen = () => {
         this.isConnectedToBridge = true;
         this.onStatusChange({
           status: 'bridge_connected',
-          message: 'Bridge Lokal Aktif. Siap menghubungkan akun TikTok.'
+          message: 'Bridge Lokal Terdeteksi & Terhubung Otomatis! 🟢'
         });
 
-        // Jika username sudah ada, kirim perintah koneksi
+        // AUTO-CONNECT: Jika sudah ada username tersimpan, langsung hubungkan ke siaran TikTok!
         if (this.username) {
           this.sendConnect(this.username);
         }
@@ -70,16 +80,30 @@ export class TikTokLiveClient {
 
       this.ws.onclose = () => {
         this.isConnectedToBridge = false;
-        this.onStatusChange({
-          status: 'bridge_disconnected',
-          message: 'Bridge lokal belum dijalankan. Jalankan "npm run tiktok" di terminal.'
-        });
+        
+        // Deteksi jika berjalan di Vercel (HTTPS) dan browser memblokir mixed content
+        const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+        if (isHttps && targetUrl.startsWith('ws://')) {
+          this.onStatusChange({
+            status: 'mixed_content_warning',
+            message: 'Perlu Izin Chrome: Klik gembok 🔒 di URL -> Site Settings -> Ubah "Insecure content" ke Allow'
+          });
+        } else {
+          this.onStatusChange({
+            status: 'bridge_disconnected',
+            message: 'Mencari JALANKAN_TIKTOK.bat di latar belakang...'
+          });
+        }
 
+        // Coba endpoint alternatif (rotasi localhost <-> 127.0.0.1)
+        this.currentEndpointIndex++;
+
+        // Auto-reconnect berkala: Begitu bat file dibuka, langsung tersambung otomatis!
         if (this.autoReconnect) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = setTimeout(() => {
             this.connectToBridge();
-          }, 3500);
+          }, 2500);
         }
       };
 
@@ -89,6 +113,12 @@ export class TikTokLiveClient {
 
     } catch (err) {
       this.isConnectedToBridge = false;
+      if (this.autoReconnect) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => {
+          this.connectToBridge();
+        }, 3000);
+      }
     }
   }
 
