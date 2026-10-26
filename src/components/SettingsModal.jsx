@@ -23,6 +23,8 @@ export function SettingsModal({
   onSaveTiktokUsername,
   tiktokWsUrl,
   onSaveTiktokWsUrl,
+  tiktokApiKey,
+  onSaveTiktokApiKey,
   tiktokStatus,
   onConnectTiktok,
   onDisconnectTiktok,
@@ -47,6 +49,7 @@ export function SettingsModal({
   // TikTok state
   const [ttUser, setTtUser] = useState(tiktokUsername || '');
   const [bridgeUrl, setBridgeUrl] = useState(tiktokWsUrl || 'ws://localhost:8081');
+  const [apiKey, setApiKey] = useState(tiktokApiKey || '');
 
   // Facebook state
   const [videoId, setVideoId] = useState(fbConfig.liveVideoId || '');
@@ -64,7 +67,8 @@ export function SettingsModal({
   useEffect(() => {
     setTtUser(tiktokUsername || '');
     setBridgeUrl(tiktokWsUrl || 'ws://localhost:8081');
-  }, [tiktokUsername, tiktokWsUrl]);
+    setApiKey(tiktokApiKey || '');
+  }, [tiktokUsername, tiktokWsUrl, tiktokApiKey]);
 
   useEffect(() => {
     setVideoId(fbConfig.liveVideoId || '');
@@ -251,6 +255,48 @@ export function SettingsModal({
               </div>
 
               <form onSubmit={handleConnectTiktok} className="space-y-3">
+                {/* Mode Pilihan Koneksi */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
+                    Pilih Metode Koneksi TikTok:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = 'wss://api.tik.tools';
+                        setBridgeUrl(url);
+                        onSaveTiktokWsUrl(url);
+                      }}
+                      className={`p-2 rounded-xl border text-left text-xs font-bold font-sans transition-all cursor-pointer ${
+                        bridgeUrl.includes('tik.tools')
+                          ? 'bg-rose-950/80 border-rose-500 text-rose-200 shadow-md ring-1 ring-rose-400'
+                          : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <p className="text-[11px] font-extrabold text-rose-300">🌐 100% Full Vercel Cloud</p>
+                      <p className="text-[10px] text-slate-400 font-normal mt-0.5">Via API Publik (tik.tools) tanpa buka laptop</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = 'ws://localhost:8081';
+                        setBridgeUrl(url);
+                        onSaveTiktokWsUrl(url);
+                      }}
+                      className={`p-2 rounded-xl border text-left text-xs font-bold font-sans transition-all cursor-pointer ${
+                        bridgeUrl.includes('localhost') || bridgeUrl.includes('127.0.0.1')
+                          ? 'bg-rose-950/80 border-rose-500 text-rose-200 shadow-md ring-1 ring-rose-400'
+                          : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <p className="text-[11px] font-extrabold text-rose-300">💻 Jembatan Laptop</p>
+                      <p className="text-[10px] text-slate-400 font-normal mt-0.5">Via JALANKAN_TIKTOK.bat di PC</p>
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
                     Username TikTok (Sedang Live)
@@ -267,26 +313,40 @@ export function SettingsModal({
                   </div>
                 </div>
 
+                {bridgeUrl.includes('tik.tools') && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
+                      TikTools API Key (Dapatkan gratis di <a href="https://tik.tools" target="_blank" rel="noreferrer" className="text-rose-400 underline">tik.tools</a>)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Paste API Key TikTools Anda di sini"
+                      value={apiKey}
+                      onChange={(e) => {
+                        setApiKey(e.target.value);
+                        onSaveTiktokApiKey(e.target.value);
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-rose-500 font-mono"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-300 font-sans">
-                      Alamat Bridge WebSocket Server
+                      Alamat WebSocket Server (Aktif)
                     </label>
-                    <span className="text-[10px] text-slate-500 font-mono">Lokal atau Cloud</span>
+                    <span className="text-[10px] text-slate-500 font-mono">Otomatis / Custom</span>
                   </div>
                   <input
                     type="text"
-                    placeholder="ws://localhost:8081"
                     value={bridgeUrl}
                     onChange={(e) => {
                       setBridgeUrl(e.target.value);
                       onSaveTiktokWsUrl(e.target.value);
                     }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-rose-500 font-mono"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-rose-500 font-mono"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1 font-sans">
-                    Isi <code>ws://localhost:8081</code> jika bridge berjalan di PC, atau isi URL cloud (misal <code>wss://bridge.onrender.com</code>) jika full online.
-                  </p>
                 </div>
 
                 {/* Status TikTok Bridge */}

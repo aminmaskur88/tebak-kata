@@ -1,19 +1,23 @@
 /**
  * TikTok Live Client Service
- * Deteksi otomatis localhost:8081 dan 127.0.0.1:8081
- * Auto-connect saat JALANKAN_TIKTOK.bat aktif
+ * Mendukung:
+ * 1. Cloud Provider Langsung (tik.tools: wss://api.tik.tools/?uniqueId=...&apiKey=...)
+ * 2. Dedicated Cloud Bridge (Render / Railway / VPS: wss://...)
+ * 3. Localhost Bridge (JALANKAN_TIKTOK.bat: ws://localhost:8081)
  */
 
 export class TikTokLiveClient {
   constructor({ 
     wsUrl = 'ws://localhost:8081', 
     initialUsername = '',
+    apiKey = '',
     onCommentReceived = () => {}, 
     onGiftReceived = () => {},
     onStatusChange = () => {} 
   }) {
     this.wsUrl = wsUrl;
     this.username = initialUsername.replace(/^@/, '').trim();
+    this.apiKey = apiKey.trim();
     this.onCommentReceived = onCommentReceived;
     this.onGiftReceived = onGiftReceived;
     this.onStatusChange = onStatusChange;
@@ -25,24 +29,38 @@ export class TikTokLiveClient {
     this.currentEndpointIndex = 0;
   }
 
-  updateBridgeUrl(newUrl) {
-    if (!newUrl || newUrl === this.wsUrl) return;
-    this.wsUrl = newUrl.trim();
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+  updateConfig({ wsUrl, username, apiKey }) {
+    if (username !== undefined) this.username = username.replace(/^@/, '').trim();
+    if (apiKey !== undefined) this.apiKey = apiKey.trim();
+    if (wsUrl !== undefined && wsUrl !== this.wsUrl) {
+      this.wsUrl = wsUrl.trim();
+      if (this.ws) {
+        this.ws.close();
+        this.ws = null;
+      }
+      this.connect();
     }
-    this.connectToBridge();
   }
 
-  connectToBridge() {
+  connect() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
-    // Tentukan URL yang dicoba (prioritas URL custom, atau fallback localhost / 127.0.0.1)
     let targetUrl = this.wsUrl;
-    if (this.wsUrl.includes('localhost') || this.wsUrl.includes('127.0.0.1')) {
+
+    // Jika menggunakan provider TikTools Cloud API
+    if (this.wsUrl.includes('tik.tools')) {
+      if (!this.username) {
+        this.onStatusChange({
+          status: 'idle',
+          message: 'Masukkan Username TikTok untuk menghubungkan ke TikTools Cloud'
+        });
+        return;
+      }
+      const keyParam = this.apiKey ? `&apiKey=${encodeURIComponent(this.apiKey)}` : '';
+      targetUrl = `wss://api.tik.tools/?uniqueId=${encodeURIComponent(this.username)}${keyParam}`;
+    } else if (this.wsUrl.includes('localhost') || this.wsUrl.includes('127.0.0.1')) {
       targetUrl = this.endpoints[this.currentEndpointIndex % this.endpoints.length];
     }
 
@@ -51,14 +69,22 @@ export class TikTokLiveClient {
 
       this.ws.onopen = () => {
         this.isConnectedToBridge = true;
-        this.onStatusChange({
-          status: 'bridge_connected',
-          message: 'Bridge Lokal Terdeteksi & Terhubung Otomatis! 🟢'
-        });
+        
+        if (targetUrl.includes('tik.tools')) {
+          this.onStatusChange({
+            status: 'connected',
+            message: `Terhubung via TikTools Cloud API ke @${this.username} 🌐`
+          });
+        } else {
+          this.onStatusChange({
+            status: 'bridge_connected',
+            message: 'Server Bridge Terhubung! 🟢'
+          });
 
-        // AUTO-CONNECT: Jika sudah ada username tersimpan, langsung hubungkan ke siaran TikTok!
-        if (this.username) {
-          this.sendConnect(this.username);
+          // Kirim perintah koneksi ke bridge
+          if (this.username) {
+            this.sendConnect(this.username);
+          }
         }
       };
 
@@ -66,12 +92,39 @@ export class TikTokLiveClient {
         try {
           const payload = JSON.parse(event.data);
 
+          // Handle Status
           if (payload.type === 'status') {
             this.onStatusChange(payload);
-          } else if (payload.type === 'chat') {
-            this.onCommentReceived(payload.data);
-          } else if (payload.type === 'gift') {
-            this.onGiftReceived(payload.data);
+          } 
+          // Handle Chat Comments (Kompatibel dengan Format TikTools & Format Bridge Lokal)
+          else if (payload.type === 'chat' || payload.event === 'chat') {
+            const userName = payload.data?.userName || payload.user?.nickname || payload.user?.uniqueId || 'Penonton TikTok';
+            const message = payload.data?.message || payload.comment || payload.text || '';
+            const profilePic = payload.data?.profilePic || payload.user?.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(userName)}`;
+            const msgId = payload.data?.id || payload.createTime || `${Date.now()}-${Math.random()}`;
+
+            if (message) {
+              this.onCommentReceived({
+                id: msgId,
+                userName,
+                message,
+                profilePic,
+                source: 'tiktok'
+              });
+            }
+          } 
+          // Handle Gifts (Kompatibel dengan Format TikTools & Format Bridge Lokal)
+          else if (payload.type === 'gift' || payload.event === 'gift') {
+            const userName = payload.data?.userName || payload.user?.nickname || payload.user?.uniqueId || 'Penonton';
+            const giftName = payload.data?.giftName || payload.gift?.name || payload.giftName || 'Gift';
+            const count = payload.data?.count || payload.repeatCount || payload.diamondCount || 1;
+
+            this.onGiftReceived({
+              userName,
+              giftName,
+              count,
+              source: 'tiktok'
+            });
           }
         } catch {
           // ignore parsing error
@@ -81,29 +134,31 @@ export class TikTokLiveClient {
       this.ws.onclose = () => {
         this.isConnectedToBridge = false;
         
-        // Deteksi jika berjalan di Vercel (HTTPS) dan browser memblokir mixed content
         const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
         if (isHttps && targetUrl.startsWith('ws://')) {
           this.onStatusChange({
             status: 'mixed_content_warning',
             message: 'Perlu Izin Chrome: Klik gembok 🔒 di URL -> Site Settings -> Ubah "Insecure content" ke Allow'
           });
+        } else if (targetUrl.includes('tik.tools')) {
+          this.onStatusChange({
+            status: 'error',
+            message: 'TikTools Cloud terputus. Pastikan username sedang live atau cek API Key.'
+          });
         } else {
           this.onStatusChange({
             status: 'bridge_disconnected',
-            message: 'Mencari JALANKAN_TIKTOK.bat di latar belakang...'
+            message: 'Mencari koneksi server bridge...'
           });
         }
 
-        // Coba endpoint alternatif (rotasi localhost <-> 127.0.0.1)
         this.currentEndpointIndex++;
 
-        // Auto-reconnect berkala: Begitu bat file dibuka, langsung tersambung otomatis!
         if (this.autoReconnect) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = setTimeout(() => {
-            this.connectToBridge();
-          }, 2500);
+            this.connect();
+          }, 3500);
         }
       };
 
@@ -116,8 +171,8 @@ export class TikTokLiveClient {
       if (this.autoReconnect) {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => {
-          this.connectToBridge();
-        }, 3000);
+          this.connect();
+        }, 3500);
       }
     }
   }
@@ -130,7 +185,7 @@ export class TikTokLiveClient {
         username: this.username
       }));
     } else {
-      this.connectToBridge();
+      this.connect();
     }
   }
 

@@ -50,6 +50,13 @@ export default function App() {
       return 'ws://localhost:8081';
     }
   });
+  const [tiktokApiKey, setTiktokApiKey] = useState(() => {
+    try {
+      return localStorage.getItem('tiktok_api_key') || '';
+    } catch {
+      return '';
+    }
+  });
   const [tiktokStatus, setTiktokStatus] = useState({
     status: 'idle',
     message: 'Bridge offline (Jalankan npm run tiktok atau isi URL bridge)'
@@ -285,6 +292,7 @@ export default function App() {
     tiktokClientRef.current = new TikTokLiveClient({
       wsUrl: tiktokWsUrl,
       initialUsername: tiktokUsername,
+      apiKey: tiktokApiKey,
       onCommentReceived: (comment) => {
         handleIncomingComment(comment);
       },
@@ -296,14 +304,14 @@ export default function App() {
       }
     });
 
-    tiktokClientRef.current.connectToBridge();
+    tiktokClientRef.current.connect();
 
     return () => {
       if (tiktokClientRef.current) {
         tiktokClientRef.current.destroy();
       }
     };
-  }, [handleIncomingComment, handleIncomingGift, tiktokWsUrl, tiktokUsername]);
+  }, [handleIncomingComment, handleIncomingGift, tiktokWsUrl, tiktokUsername, tiktokApiKey]);
 
   // Setup Poller Facebook Live
   useEffect(() => {
@@ -390,7 +398,19 @@ export default function App() {
       // ignore
     }
     if (tiktokClientRef.current) {
-      tiktokClientRef.current.updateBridgeUrl(url);
+      tiktokClientRef.current.updateConfig({ wsUrl: url });
+    }
+  };
+
+  const handleSaveTiktokApiKey = (key) => {
+    setTiktokApiKey(key);
+    try {
+      localStorage.setItem('tiktok_api_key', key);
+    } catch {
+      // ignore
+    }
+    if (tiktokClientRef.current) {
+      tiktokClientRef.current.updateConfig({ apiKey: key });
     }
   };
 
@@ -582,6 +602,8 @@ export default function App() {
         onSaveTiktokUsername={handleSaveTiktokUsername}
         tiktokWsUrl={tiktokWsUrl}
         onSaveTiktokWsUrl={handleSaveTiktokWsUrl}
+        tiktokApiKey={tiktokApiKey}
+        onSaveTiktokApiKey={handleSaveTiktokApiKey}
         tiktokStatus={tiktokStatus}
         onConnectTiktok={handleConnectTiktok}
         onDisconnectTiktok={handleDisconnectTiktok}
