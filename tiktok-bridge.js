@@ -1,15 +1,115 @@
+import http from 'http';
 import { WebSocketServer } from 'ws';
 import { TikTokLiveConnection } from 'tiktok-live-connector';
 
 const PORT = process.env.PORT || 8081;
-const wss = new WebSocketServer({ port: PORT });
 
 let tiktokConnection = null;
 let currentUsername = process.argv[2] || '';
+let connectionStatus = { status: 'idle', message: 'Menunggu koneksi akun TikTok' };
+
+// Buat HTTP server untuk menangani akses browser (agar tidak muncul error 426 Upgrade Required)
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(`
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>TikTok Live Connector Bridge</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: system-ui, -apple-system, sans-serif;
+          background: #090d16;
+          color: #f1f5f9;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          margin: 0;
+          padding: 20px;
+        }
+        .card {
+          background: #111827;
+          border: 1px solid #1f2937;
+          border-radius: 24px;
+          padding: 32px;
+          max-width: 480px;
+          width: 100%;
+          text-align: center;
+          box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        .badge {
+          display: inline-block;
+          background: rgba(16, 185, 129, 0.2);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.4);
+          padding: 6px 14px;
+          border-radius: 9999px;
+          font-size: 13px;
+          font-weight: 700;
+          margin-bottom: 16px;
+        }
+        h1 { margin: 0 0 10px; font-size: 22px; color: #fff; }
+        p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px; }
+        .btn {
+          display: inline-block;
+          background: linear-gradient(135deg, #6366f1, #4f46e5);
+          color: white;
+          text-decoration: none;
+          font-weight: 700;
+          padding: 12px 28px;
+          border-radius: 14px;
+          font-size: 15px;
+          box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+          transition: all 0.2s;
+        }
+        .btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 24px rgba(99, 102, 241, 0.5);
+        }
+        .info-box {
+          background: #0b0f19;
+          border: 1px solid #1e293b;
+          border-radius: 14px;
+          padding: 14px;
+          margin-top: 24px;
+          font-size: 12px;
+          color: #64748b;
+          text-align: left;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <span class="badge">🟢 TikTok Bridge AKTIF</span>
+        <h1>Layanan Jembatan TikTok Berjalan!</h1>
+        <p>
+          Halaman ini adalah jembatan background (WebSocket) untuk TikTok Live.
+          <br><br>
+          Untuk memainkan <strong>Game Tebak Kata</strong>, silakan buka tampilan game di bawah ini:
+        </p>
+        <a href="http://localhost:5173" class="btn">👉 Buka Game Tebak Kata (Klik Disini)</a>
+        
+        <div class="info-box">
+          <strong>Info Koneksi:</strong><br>
+          • Status TikTok: <code>${connectionStatus.status}</code> (${connectionStatus.message})<br>
+          • Akun Terpantau: <code>${currentUsername || 'Belum dihubungkan'}</code><br>
+          • WebSocket: <code>ws://localhost:${PORT}</code>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+const wss = new WebSocketServer({ server });
 
 console.log('==================================================');
 console.log('🎮 TIKTOK LIVE CONNECTOR BRIDGE');
-console.log(`📡 WebSocket Server aktif di ws://localhost:${PORT}`);
+console.log(`📡 Layanan aktif di http://localhost:${PORT} & ws://localhost:${PORT}`);
+console.log('👉 Buka Tampilan Game di: http://localhost:5173');
 console.log('==================================================');
 
 function broadcast(obj) {
@@ -39,10 +139,14 @@ function connectToTikTok(username) {
   currentUsername = username.replace(/^@/, '').trim();
   console.log(`\n⏳ Mencoba terhubung ke siaran TikTok Live @${currentUsername}...`);
 
-  broadcast({
-    type: 'status',
+  connectionStatus = {
     status: 'connecting',
     message: `Menghubungkan ke @${currentUsername}...`
+  };
+
+  broadcast({
+    type: 'status',
+    ...connectionStatus
   });
 
   tiktokConnection = new TikTokLiveConnection(currentUsername, {
@@ -52,17 +156,23 @@ function connectToTikTok(username) {
 
   tiktokConnection.connect().then(state => {
     console.log(`✅ BERHASIL TERHUBUNG ke TikTok Live @${currentUsername} (Room ID: ${state.roomId})`);
-    broadcast({
-      type: 'status',
+    connectionStatus = {
       status: 'connected',
       message: `Terhubung ke @${currentUsername} (Room: ${state.roomId})`
+    };
+    broadcast({
+      type: 'status',
+      ...connectionStatus
     });
   }).catch(err => {
     console.error(`❌ Gagal terhubung ke TikTok Live @${currentUsername}:`, err.message);
-    broadcast({
-      type: 'status',
+    connectionStatus = {
       status: 'error',
       message: `Gagal: ${err.message}`
+    };
+    broadcast({
+      type: 'status',
+      ...connectionStatus
     });
   });
 
@@ -84,7 +194,6 @@ function connectToTikTok(username) {
   // Event: Kiriman Hadiah (Gift)
   tiktokConnection.on('gift', data => {
     if (data.giftType === 1 && !data.repeatEnd) {
-      // Streak ongoing
       return;
     }
     console.log(`🎁 [GIFT] ${data.uniqueId} mengirim ${data.giftName} x${data.repeatCount || 1}`);
@@ -124,19 +233,25 @@ function connectToTikTok(username) {
   // Event: Terputus
   tiktokConnection.on('disconnected', () => {
     console.log(`⚠️ Terputus dari TikTok Live @${currentUsername}`);
-    broadcast({
-      type: 'status',
+    connectionStatus = {
       status: 'disconnected',
       message: `Terputus dari @${currentUsername}`
+    };
+    broadcast({
+      type: 'status',
+      ...connectionStatus
     });
   });
 
   tiktokConnection.on('error', err => {
     console.error('❌ TikTok Error:', err);
-    broadcast({
-      type: 'status',
+    connectionStatus = {
       status: 'error',
       message: `Error: ${err.message}`
+    };
+    broadcast({
+      type: 'status',
+      ...connectionStatus
     });
   });
 }
@@ -146,13 +261,10 @@ wss.on('connection', ws => {
   console.log('🔗 Client baru terhubung ke bridge (OBS / Browser)');
 
   // Kirim status saat ini ke client yang baru buka
-  if (tiktokConnection && tiktokConnection.isConnected) {
-    ws.send(JSON.stringify({
-      type: 'status',
-      status: 'connected',
-      message: `Terhubung ke @${currentUsername}`
-    }));
-  }
+  ws.send(JSON.stringify({
+    type: 'status',
+    ...connectionStatus
+  }));
 
   ws.on('message', message => {
     try {
@@ -163,6 +275,8 @@ wss.on('connection', ws => {
         if (tiktokConnection) {
           tiktokConnection.disconnect();
           tiktokConnection = null;
+          connectionStatus = { status: 'disconnected', message: 'Koneksi diputus pengguna' };
+          broadcast({ type: 'status', ...connectionStatus });
         }
       }
     } catch {
@@ -171,9 +285,10 @@ wss.on('connection', ws => {
   });
 });
 
-// Jika ada username dari argumen terminal (misal: node tiktok-bridge.js nama_akun)
-if (currentUsername) {
-  connectToTikTok(currentUsername);
-} else {
-  console.log('💡 Menunggu perintah koneksi dari menu pengaturan di browser atau OBS...');
-}
+server.listen(PORT, () => {
+  if (currentUsername) {
+    connectToTikTok(currentUsername);
+  } else {
+    console.log('💡 Menunggu perintah koneksi dari menu pengaturan di browser atau OBS...');
+  }
+});
