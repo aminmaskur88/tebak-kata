@@ -1,0 +1,404 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  X, 
+  Radio, 
+  Volume2, 
+  Play, 
+  Sparkles, 
+  Send, 
+  HelpCircle, 
+  CheckCircle2, 
+  Info,
+  Sliders
+} from 'lucide-react';
+import { speechService } from '../services/speechService';
+
+export function SettingsModal({
+  isOpen,
+  onClose,
+  fbConfig,
+  onSaveFbConfig,
+  fbStatus,
+  onStartFb,
+  onStopFb,
+  isVoiceEnabled,
+  onToggleVoice,
+  voiceRate,
+  onChangeVoiceRate,
+  onSimulateComment,
+  currentWord
+}) {
+  const [activeTab, setActiveTab] = useState('facebook'); // 'facebook' | 'voice' | 'simulator'
+  const [videoId, setVideoId] = useState(fbConfig.liveVideoId || '');
+  const [token, setToken] = useState(fbConfig.accessToken || '');
+  const [simName, setSimName] = useState('Budi Gaming');
+  const [simComment, setSimComment] = useState('');
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState('');
+
+  useEffect(() => {
+    setVideoId(fbConfig.liveVideoId || '');
+    setToken(fbConfig.accessToken || '');
+  }, [fbConfig]);
+
+  useEffect(() => {
+    const voices = speechService.getAvailableVoices();
+    setAvailableVoices(voices);
+    if (speechService.voice) {
+      setSelectedVoiceURI(speechService.voice.voiceURI);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSaveFb = (e) => {
+    e.preventDefault();
+    onSaveFbConfig({ liveVideoId: videoId, accessToken: token });
+  };
+
+  const handleVoiceChange = (e) => {
+    const uri = e.target.value;
+    setSelectedVoiceURI(uri);
+    speechService.setVoice(uri);
+  };
+
+  const handleTestVoice = () => {
+    speechService.synth?.cancel();
+    speechService.speakComment({
+      userName: 'Siti',
+      text: 'Halo penonton! Voice over bahasa Indonesia siap digunakan.',
+      isNear: false
+    });
+  };
+
+  const handleSendSimulated = (e) => {
+    e.preventDefault();
+    if (!simComment.trim()) return;
+    onSimulateComment({
+      userName: simName.trim() || 'Penonton',
+      message: simComment.trim()
+    });
+    setSimComment('');
+  };
+
+  // Helper untuk membuat komentar mendekati dari kata target
+  const handleTestNearWord = () => {
+    if (!currentWord) return;
+    const target = currentWord.word.toLowerCase();
+    // Bikin variasi mendekati (kurang 1 huruf atau typo 1 huruf)
+    let nearWord = target.slice(0, -1);
+    if (nearWord.length < 3) nearWord = target + 'h';
+
+    onSimulateComment({
+      userName: 'Ahmad_Gamer',
+      message: nearWord
+    });
+  };
+
+  // Helper untuk tes menang langsung
+  const handleTestExactWord = () => {
+    if (!currentWord) return;
+    onSimulateComment({
+      userName: 'Rina_Pintar',
+      message: currentWord.word
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-pop">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        
+        {/* Header Modal */}
+        <div className="px-5 py-4 bg-slate-950/70 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sliders className="w-5 h-5 text-indigo-400" />
+            <h3 className="font-game font-bold text-lg text-white">
+              Pengaturan Game Stream
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex border-b border-slate-800 bg-slate-950/40 p-1 gap-1">
+          <button
+            onClick={() => setActiveTab('facebook')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'facebook'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5" />
+            <span>Facebook Live</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('voice')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'voice'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+            <span>Voice Over (TTS)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('simulator')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'simulator'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Test Simulator</span>
+          </button>
+        </div>
+
+        {/* Tab Body */}
+        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+          {/* TAB 1: FACEBOOK LIVE */}
+          {activeTab === 'facebook' && (
+            <form onSubmit={handleSaveFb} className="space-y-4">
+              <div className="bg-indigo-950/30 border border-indigo-500/30 rounded-2xl p-3.5 text-xs text-indigo-200 font-sans leading-relaxed flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold mb-1">Panduan Facebook Live Comments:</p>
+                  <p>1. Buka Facebook Live Producer saat memulai siaran.</p>
+                  <p>2. Salin <strong>Live Video ID</strong> dari URL siaran.</p>
+                  <p>3. Dapatkan <strong>Page Access Token</strong> dengan izin <code>pages_read_engagement</code>.</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
+                  Facebook Live Video ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 1022938475819203"
+                  value={videoId}
+                  onChange={(e) => setVideoId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
+                  Facebook Access Token
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Paste Access Token Facebook Anda di sini (EAA...)"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              {/* Status & Kontrol Polling */}
+              <div className="flex items-center justify-between pt-2">
+                <div className="text-xs font-sans">
+                  <span className="text-slate-400">Status: </span>
+                  <span className={`font-bold ${
+                    fbStatus.status === 'connected' || fbStatus.status === 'active'
+                      ? 'text-emerald-400'
+                      : fbStatus.status === 'error'
+                      ? 'text-rose-400'
+                      : 'text-slate-400'
+                  }`}>
+                    {fbStatus.message || 'Belum Terhubung'}
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                  {fbStatus.status === 'active' || fbStatus.status === 'connected' ? (
+                    <button
+                      type="button"
+                      onClick={onStopFb}
+                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold cursor-pointer font-sans"
+                    >
+                      Stop Polling
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onStartFb}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold cursor-pointer font-sans"
+                    >
+                      Mulai Deteksi Live
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* TAB 2: VOICE OVER (TTS) */}
+          {activeTab === 'voice' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
+                <div>
+                  <p className="text-sm font-bold text-slate-200 font-sans">Voice Over Tiap Komentar</p>
+                  <p className="text-xs text-slate-400 font-sans">Membaca nama dan komentar penonton secara realtime</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={isVoiceEnabled}
+                  onChange={onToggleVoice}
+                  className="w-5 h-5 accent-indigo-500 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
+                  Pilihan Suara (Voice)
+                </label>
+                <select
+                  value={selectedVoiceURI}
+                  onChange={handleVoiceChange}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-sans"
+                >
+                  {availableVoices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>
+                      {v.name} ({v.lang})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs font-bold text-slate-300 mb-1.5 font-sans">
+                  <span>Kecepatan Suara (Rate)</span>
+                  <span className="text-indigo-400">{voiceRate}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.8"
+                  max="1.5"
+                  step="0.05"
+                  value={voiceRate}
+                  onChange={(e) => onChangeVoiceRate(parseFloat(e.target.value))}
+                  className="w-full accent-indigo-500 cursor-pointer"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  1.1x - 1.2x direkomendasikan agar pembacaan komentar gesit saat live ramai.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTestVoice}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 rounded-xl text-xs font-bold font-sans cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Uji Suara Voice Over (Test TTS)</span>
+              </button>
+            </div>
+          )}
+
+          {/* TAB 3: SIMULATOR (TEST KOMENTAR) */}
+          {activeTab === 'simulator' && (
+            <div className="space-y-4">
+              <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-2xl p-3 text-xs text-emerald-200 font-sans flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold mb-0.5">Fitur Tes Langsung Tanpa Perlu Live Dulu!</p>
+                  <p>Gunakan tombol cepat di bawah untuk melihat efek komentar <strong>Mendekati (HIJAU)</strong> dan selebrasi <strong>Juara</strong>.</p>
+                </div>
+              </div>
+
+              {/* Quick Action Test Buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestNearWord}
+                  className="p-3 bg-emerald-950/60 hover:bg-emerald-900/80 border-2 border-emerald-500 text-emerald-200 rounded-2xl text-left transition-all cursor-pointer shadow-md"
+                >
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                    🟢 Tes Mendekati (Hijau)
+                  </p>
+                  <p className="text-[11px] text-emerald-400/80 mt-1">
+                    Komentar typo/kurang 1 huruf akan ditulis hijau!
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTestExactWord}
+                  className="p-3 bg-amber-950/60 hover:bg-amber-900/80 border-2 border-amber-500 text-amber-200 rounded-2xl text-left transition-all cursor-pointer shadow-md"
+                >
+                  <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                    🏆 Tes Jawaban Tepat
+                  </p>
+                  <p className="text-[11px] text-amber-400/80 mt-1">
+                    Selebrasi pemenang + confetti langsung muncul!
+                  </p>
+                </button>
+              </div>
+
+              {/* Form Input Komentar Custom */}
+              <form onSubmit={handleSendSimulated} className="space-y-3 pt-2 border-t border-slate-800">
+                <p className="text-xs font-bold text-slate-300 font-sans">
+                  Kirim Komentar Manual Bebas:
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <input
+                      type="text"
+                      placeholder="Nama Akun"
+                      value={simName}
+                      onChange={(e) => setSimName(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-sans"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      placeholder={`Ketik tebakanmu (Target: ${currentWord?.word || ''})`}
+                      value={simComment}
+                      onChange={(e) => setSimComment(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-sans"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold font-sans cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Kirim Komentar ke Live Chat</span>
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 bg-slate-950/70 border-t border-slate-800 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-sans text-xs font-bold rounded-xl cursor-pointer"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
