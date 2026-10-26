@@ -6,6 +6,7 @@ const PORT = process.env.PORT || 8081;
 
 let tiktokConnection = null;
 let currentUsername = process.argv[2] || '';
+let currentApiKey = process.env.SIGN_API_KEY || '';
 let connectionStatus = { status: 'idle', message: 'Menunggu koneksi akun TikTok' };
 
 // Buat HTTP server untuk menangani akses browser (agar tidak muncul error 426 Upgrade Required)
@@ -121,13 +122,13 @@ function broadcast(obj) {
   });
 }
 
-function connectToTikTok(username) {
+function connectToTikTok(username, apiKey = '') {
   if (!username) {
     console.log('⚠️ Username TikTok kosong.');
     return;
   }
 
-  // Jika sudah ada koneksi sebelumnya, putuskan dulu
+  // Putuskan koneksi sebelumnya jika ada
   if (tiktokConnection) {
     try {
       tiktokConnection.disconnect();
@@ -137,6 +138,8 @@ function connectToTikTok(username) {
   }
 
   currentUsername = username.replace(/^@/, '').trim();
+  if (apiKey) currentApiKey = apiKey.trim();
+
   console.log(`\n⏳ Mencoba terhubung ke siaran TikTok Live @${currentUsername}...`);
 
   connectionStatus = {
@@ -149,26 +152,38 @@ function connectToTikTok(username) {
     ...connectionStatus
   });
 
-  tiktokConnection = new TikTokLiveConnection(currentUsername, {
-    enableExtendedGiftInfo: true,
+  const connectionOptions = {
     processInitialData: false
-  });
+  };
+
+  if (currentApiKey) {
+    connectionOptions.signApiKey = currentApiKey;
+  }
+
+  tiktokConnection = new TikTokLiveConnection(currentUsername, connectionOptions);
 
   tiktokConnection.connect().then(state => {
     console.log(`✅ BERHASIL TERHUBUNG ke TikTok Live @${currentUsername} (Room ID: ${state.roomId})`);
     connectionStatus = {
       status: 'connected',
-      message: `Terhubung ke @${currentUsername} (Room: ${state.roomId})`
+      message: `Terhubung ke @${currentUsername}`
     };
     broadcast({
       type: 'status',
       ...connectionStatus
     });
   }).catch(err => {
-    console.error(`❌ Gagal terhubung ke TikTok Live @${currentUsername}:`, err.message);
+    let friendlyMsg = err.message;
+    if (err.message.includes('rate_limit')) {
+      friendlyMsg = 'Batas koneksi per menit tercapai. Mohon tunggu 1 menit lalu coba lagi.';
+    } else if (err.message.includes("isn't online")) {
+      friendlyMsg = `@${currentUsername} saat ini sedang TIDAK LIVE.`;
+    }
+
+    console.error(`❌ Gagal terhubung ke TikTok Live @${currentUsername}:`, friendlyMsg);
     connectionStatus = {
       status: 'error',
-      message: `Gagal: ${err.message}`
+      message: friendlyMsg
     };
     broadcast({
       type: 'status',
@@ -178,14 +193,21 @@ function connectToTikTok(username) {
 
   // Event: Komentar Obrolan (Chat)
   tiktokConnection.on('chat', data => {
-    console.log(`💬 [CHAT] ${data.uniqueId} (${data.nickname}): ${data.comment}`);
+    const userName = data.user?.nickname || data.user?.displayId || data.nickname || data.uniqueId || 'Penonton TikTok';
+    const message = data.content || data.comment || '';
+    const profilePic = data.user?.avatarThumb?.urlList?.[0] || data.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(userName)}`;
+    const msgId = data.common?.msgId || data.msgId || `${Date.now()}-${Math.random()}`;
+
+    if (!message) return;
+
+    console.log(`💬 [CHAT] ${userName}: ${message}`);
     broadcast({
       type: 'chat',
       data: {
-        id: data.msgId || `${Date.now()}-${Math.random()}`,
-        userName: data.nickname || data.uniqueId,
-        message: data.comment,
-        profilePic: data.profilePictureUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(data.uniqueId)}`,
+        id: msgId,
+        userName,
+        message,
+        profilePic,
         source: 'tiktok'
       }
     });
@@ -193,16 +215,17 @@ function connectToTikTok(username) {
 
   // Event: Kiriman Hadiah (Gift)
   tiktokConnection.on('gift', data => {
-    if (data.giftType === 1 && !data.repeatEnd) {
-      return;
-    }
-    console.log(`🎁 [GIFT] ${data.uniqueId} mengirim ${data.giftName} x${data.repeatCount || 1}`);
+    const userName = data.user?.nickname || data.user?.displayId || data.nickname || data.uniqueId || 'Penonton TikTok';
+    const giftName = data.gift?.name || data.giftName || 'Hadiah';
+    const count = data.repeatCount || data.comboCount || 1;
+
+    console.log(`🎁 [GIFT] ${userName} mengirim ${giftName} x${count}`);
     broadcast({
       type: 'gift',
       data: {
-        userName: data.nickname || data.uniqueId,
-        giftName: data.giftName,
-        count: data.repeatCount || 1,
+        userName,
+        giftName,
+        count,
         source: 'tiktok'
       }
     });
@@ -210,22 +233,24 @@ function connectToTikTok(username) {
 
   // Event: Suka / Like
   tiktokConnection.on('like', data => {
+    const userName = data.user?.nickname || data.user?.displayId || data.nickname || data.uniqueId || 'Penonton';
     broadcast({
       type: 'like',
       data: {
-        userName: data.nickname || data.uniqueId,
-        likeCount: data.likeCount,
-        totalLikes: data.totalLikeCount
+        userName,
+        likeCount: data.likeCount || 1,
+        totalLikes: data.totalLikeCount || 0
       }
     });
   });
 
   // Event: Penonton Bergabung (Member)
   tiktokConnection.on('member', data => {
+    const userName = data.user?.nickname || data.user?.displayId || data.nickname || data.uniqueId || 'Penonton';
     broadcast({
       type: 'member',
       data: {
-        userName: data.nickname || data.uniqueId
+        userName
       }
     });
   });
@@ -244,15 +269,7 @@ function connectToTikTok(username) {
   });
 
   tiktokConnection.on('error', err => {
-    console.error('❌ TikTok Error:', err);
-    connectionStatus = {
-      status: 'error',
-      message: `Error: ${err.message}`
-    };
-    broadcast({
-      type: 'status',
-      ...connectionStatus
-    });
+    console.error('❌ TikTok Error:', err.message);
   });
 }
 
@@ -270,7 +287,7 @@ wss.on('connection', ws => {
     try {
       const payload = JSON.parse(message.toString());
       if (payload.action === 'connect') {
-        connectToTikTok(payload.username);
+        connectToTikTok(payload.username, payload.apiKey);
       } else if (payload.action === 'disconnect') {
         if (tiktokConnection) {
           tiktokConnection.disconnect();
@@ -287,7 +304,7 @@ wss.on('connection', ws => {
 
 server.listen(PORT, () => {
   if (currentUsername) {
-    connectToTikTok(currentUsername);
+    connectToTikTok(currentUsername, currentApiKey);
   } else {
     console.log('💡 Menunggu perintah koneksi dari menu pengaturan di browser atau OBS...');
   }
