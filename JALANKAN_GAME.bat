@@ -4,5 +4,5 @@ cd /d "%~dp0"
 echo ===================================================
 echo Memulai Server Game Tebak Kata...
 echo ===================================================
-npm.cmd run dev
+call npm.cmd run dev
 pause
