@@ -4,6 +4,7 @@ import { checkWordMatch } from './utils/similarity';
 import { soundEffects } from './services/soundEffects';
 import { speechService } from './services/speechService';
 import { FacebookLivePoller } from './services/facebookLive';
+import { TikTokLiveClient } from './services/tiktokLive';
 
 import { GameBoard } from './components/GameBoard';
 import { LiveChatFeed } from './components/LiveChatFeed';
@@ -33,6 +34,20 @@ export default function App() {
   const [isVoiceMuted, setIsVoiceMuted] = useState(false);
   const [voiceRate, setVoiceRate] = useState(1.15);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // TikTok Live Connection State
+  const [tiktokUsername, setTiktokUsername] = useState(() => {
+    try {
+      return localStorage.getItem('tiktok_username') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [tiktokStatus, setTiktokStatus] = useState({
+    status: 'idle',
+    message: 'Bridge offline (Jalankan npm run tiktok)'
+  });
+  const tiktokClientRef = useRef(null);
 
   // Facebook Live Polling State
   const [fbConfig, setFbConfig] = useState(() => {
@@ -85,7 +100,7 @@ export default function App() {
     setTimeLeft(MAX_TIME);
   };
 
-  // Handler komentar masuk (dari Facebook Live atau Simulator)
+  // Handler komentar masuk (dari TikTok Live, Facebook Live, atau Simulator)
   const handleIncomingComment = useCallback((commentData) => {
     if (!currentWord || isPaused) return;
 
@@ -100,6 +115,7 @@ export default function App() {
       isExact: match.isExact,
       isNear: match.isNear, // DITULIS HIJAU!
       reason: match.reason,
+      source: commentData.source || 'sim',
       timestamp: Date.now()
     };
 
@@ -182,6 +198,62 @@ export default function App() {
 
   }, [currentWord, isPaused, nextWord]);
 
+  // Handler Kiriman Hadiah / Gift TikTok
+  const handleIncomingGift = useCallback((giftData) => {
+    soundEffects.playCorrectSound();
+    speechService.speakComment({
+      userName: giftData.userName,
+      text: `Terima kasih atas kiriman ${giftData.giftName}!`,
+      isNear: false
+    });
+
+    // Tambah bonus point untuk pengirim gift
+    setScores(prev => {
+      const existing = prev.find(p => p.userName.toLowerCase() === giftData.userName.toLowerCase());
+      if (existing) {
+        return prev.map(p =>
+          p.userName.toLowerCase() === giftData.userName.toLowerCase()
+            ? { ...p, points: p.points + 50 }
+            : p
+        );
+      } else {
+        return [
+          ...prev,
+          {
+            userName: giftData.userName,
+            points: 50,
+            wins: 0,
+            profilePic: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(giftData.userName)}`
+          }
+        ];
+      }
+    });
+  }, []);
+
+  // Setup TikTok Live WebSocket Client
+  useEffect(() => {
+    tiktokClientRef.current = new TikTokLiveClient({
+      wsUrl: 'ws://localhost:8081',
+      onCommentReceived: (comment) => {
+        handleIncomingComment(comment);
+      },
+      onGiftReceived: (gift) => {
+        handleIncomingGift(gift);
+      },
+      onStatusChange: (status) => {
+        setTiktokStatus(status);
+      }
+    });
+
+    tiktokClientRef.current.connectToBridge();
+
+    return () => {
+      if (tiktokClientRef.current) {
+        tiktokClientRef.current.destroy();
+      }
+    };
+  }, [handleIncomingComment, handleIncomingGift]);
+
   // Setup Poller Facebook Live
   useEffect(() => {
     fbPollerRef.current = new FacebookLivePoller({
@@ -249,13 +321,36 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isPaused, currentWord, nextWord, revealOneLetter]);
 
+  // Handler TikTok Config
+  const handleSaveTiktokUsername = (user) => {
+    setTiktokUsername(user);
+    try {
+      localStorage.setItem('tiktok_username', user);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleConnectTiktok = (user) => {
+    handleSaveTiktokUsername(user);
+    if (tiktokClientRef.current) {
+      tiktokClientRef.current.sendConnect(user);
+    }
+  };
+
+  const handleDisconnectTiktok = () => {
+    if (tiktokClientRef.current) {
+      tiktokClientRef.current.sendDisconnect();
+    }
+  };
+
   // Handler Konfigurasi Facebook
   const handleSaveFbConfig = (config) => {
     setFbConfig(config);
     try {
       localStorage.setItem('fb_live_config', JSON.stringify(config));
     } catch {
-      // Ignore storage error
+      // ignore
     }
     if (fbPollerRef.current) {
       fbPollerRef.current.updateConfig(config);
@@ -286,6 +381,16 @@ export default function App() {
     speechService.rate = rate;
   };
 
+  // Menentukan status koneksi stream aktif
+  const activeStreamStatus = {
+    isLive: tiktokStatus.status === 'connected' || fbStatus.status === 'active' || fbStatus.status === 'connected',
+    label: tiktokStatus.status === 'connected'
+      ? `TikTok @${tiktokUsername}`
+      : fbStatus.status === 'active' || fbStatus.status === 'connected'
+      ? 'FB Live'
+      : 'Offline'
+  };
+
   return (
     <div className="min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-2 sm:p-4 selection:bg-indigo-500 selection:text-white">
       {/* Container Layar Game (Mendukung 9:16 Portrait TikTok atau 16:9 Landscape) */}
@@ -305,7 +410,7 @@ export default function App() {
                 Tebak Kata Live
               </h1>
               <p className="text-[10px] text-indigo-400 font-sans font-semibold">
-                Ketik jawabanmu di komentar!
+                Ketik jawabanmu di kolom komentar!
               </p>
             </div>
           </div>
@@ -379,7 +484,7 @@ export default function App() {
             layoutMode={layoutMode}
             onToggleLayout={() => setLayoutMode(prev => prev === 'portrait' ? 'landscape' : 'portrait')}
             onOpenSettings={() => setIsSettingsOpen(true)}
-            fbStatus={fbStatus}
+            streamStatus={activeStreamStatus}
           />
         </div>
       </div>
@@ -395,15 +500,24 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        // TikTok
+        tiktokUsername={tiktokUsername}
+        onSaveTiktokUsername={handleSaveTiktokUsername}
+        tiktokStatus={tiktokStatus}
+        onConnectTiktok={handleConnectTiktok}
+        onDisconnectTiktok={handleDisconnectTiktok}
+        // Facebook
         fbConfig={fbConfig}
         onSaveFbConfig={handleSaveFbConfig}
         fbStatus={fbStatus}
         onStartFb={handleStartFb}
         onStopFb={handleStopFb}
+        // Voice
         isVoiceEnabled={!isVoiceMuted}
         onToggleVoice={handleToggleVoice}
         voiceRate={voiceRate}
         onChangeVoiceRate={handleChangeVoiceRate}
+        // Simulator
         onSimulateComment={handleIncomingComment}
         currentWord={currentWord}
       />

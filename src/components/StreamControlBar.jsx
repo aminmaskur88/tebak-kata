@@ -20,8 +20,11 @@ export function StreamControlBar({
   layoutMode,
   onToggleLayout,
   onOpenSettings,
-  fbStatus
+  streamStatus = {},
+  fbStatus = {}
 }) {
+  const isLive = streamStatus.isLive || fbStatus.status === 'connected' || fbStatus.status === 'active';
+  const label = streamStatus.label || (isLive ? 'Live Aktif' : 'Offline');
   return (
     <div className="w-full bg-slate-900/95 border border-slate-800 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-xl backdrop-blur-md">
       {/* Tombol Aksi Permainan */}
@@ -53,25 +56,19 @@ export function StreamControlBar({
         </button>
       </div>
 
-      {/* Status Live Facebook */}
+      {/* Status Live Stream (TikTok / FB) */}
       <div 
         onClick={onOpenSettings}
         className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-950/70 border border-slate-800 rounded-xl cursor-pointer hover:border-slate-700 transition-all"
-        title="Klik untuk konfigurasi Facebook Live"
+        title="Klik untuk konfigurasi Live Stream (TikTok & Facebook)"
       >
         <Radio className={`w-3.5 h-3.5 ${
-          fbStatus.status === 'connected' || fbStatus.status === 'active' 
+          isLive 
             ? 'text-emerald-400 animate-pulse' 
-            : fbStatus.status === 'error' 
-            ? 'text-rose-400' 
             : 'text-slate-500'
         }`} />
         <span className="text-[11px] font-bold font-sans hidden sm:inline text-slate-300">
-          {fbStatus.status === 'connected' || fbStatus.status === 'active'
-            ? 'FB Live: Aktif'
-            : fbStatus.status === 'error'
-            ? 'FB: Error'
-            : 'FB: Offline'}
+          {label}
         </span>
       </div>
 

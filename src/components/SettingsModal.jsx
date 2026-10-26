@@ -9,32 +9,56 @@ import {
   HelpCircle, 
   CheckCircle2, 
   Info,
-  Sliders
+  Sliders,
+  Video,
+  Terminal
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 
 export function SettingsModal({
   isOpen,
   onClose,
+  // TikTok Props
+  tiktokUsername,
+  onSaveTiktokUsername,
+  tiktokStatus,
+  onConnectTiktok,
+  onDisconnectTiktok,
+  // Facebook Props
   fbConfig,
   onSaveFbConfig,
   fbStatus,
   onStartFb,
   onStopFb,
+  // Voice Props
   isVoiceEnabled,
   onToggleVoice,
   voiceRate,
   onChangeVoiceRate,
+  // Simulator Props
   onSimulateComment,
   currentWord
 }) {
-  const [activeTab, setActiveTab] = useState('facebook'); // 'facebook' | 'voice' | 'simulator'
+  const [activeTab, setActiveTab] = useState('tiktok'); // 'tiktok' | 'facebook' | 'voice' | 'simulator'
+  
+  // TikTok state
+  const [ttUser, setTtUser] = useState(tiktokUsername || '');
+
+  // Facebook state
   const [videoId, setVideoId] = useState(fbConfig.liveVideoId || '');
   const [token, setToken] = useState(fbConfig.accessToken || '');
+
+  // Simulator state
   const [simName, setSimName] = useState('Budi Gaming');
   const [simComment, setSimComment] = useState('');
+
+  // Voice state
   const [availableVoices, setAvailableVoices] = useState([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState('');
+
+  useEffect(() => {
+    setTtUser(tiktokUsername || '');
+  }, [tiktokUsername]);
 
   useEffect(() => {
     setVideoId(fbConfig.liveVideoId || '');
@@ -50,6 +74,13 @@ export function SettingsModal({
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleConnectTiktok = (e) => {
+    e.preventDefault();
+    if (!ttUser.trim()) return;
+    onSaveTiktokUsername(ttUser.trim());
+    onConnectTiktok(ttUser.trim());
+  };
 
   const handleSaveFb = (e) => {
     e.preventDefault();
@@ -85,7 +116,6 @@ export function SettingsModal({
   const handleTestNearWord = () => {
     if (!currentWord) return;
     const target = currentWord.word.toLowerCase();
-    // Bikin variasi mendekati (kurang 1 huruf atau typo 1 huruf)
     let nearWord = target.slice(0, -1);
     if (nearWord.length < 3) nearWord = target + 'h';
 
@@ -127,6 +157,18 @@ export function SettingsModal({
         {/* Tab Navigation */}
         <div className="flex border-b border-slate-800 bg-slate-950/40 p-1 gap-1">
           <button
+            onClick={() => setActiveTab('tiktok')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'tiktok'
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span>TikTok Live</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('facebook')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'facebook'
@@ -135,37 +177,114 @@ export function SettingsModal({
             }`}
           >
             <Radio className="w-3.5 h-3.5" />
-            <span>Facebook Live</span>
+            <span>Facebook</span>
           </button>
 
           <button
             onClick={() => setActiveTab('voice')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'voice'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Volume2 className="w-3.5 h-3.5" />
-            <span>Voice Over (TTS)</span>
+            <span>Voice Over</span>
           </button>
 
           <button
             onClick={() => setActiveTab('simulator')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'simulator'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Test Simulator</span>
+            <span>Simulator</span>
           </button>
         </div>
 
         {/* Tab Body */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
-          {/* TAB 1: FACEBOOK LIVE */}
+          {/* TAB 1: TIKTOK LIVE */}
+          {activeTab === 'tiktok' && (
+            <div className="space-y-4">
+              <div className="bg-rose-950/30 border border-rose-500/30 rounded-2xl p-3.5 text-xs text-rose-200 font-sans leading-relaxed">
+                <div className="flex items-center gap-2 font-bold mb-1.5 text-rose-300">
+                  <Terminal className="w-4 h-4 text-rose-400" />
+                  <span>Cara Menghubungkan TikTok Live:</span>
+                </div>
+                <ol className="list-decimal pl-4 space-y-1 text-slate-300">
+                  <li>
+                    Jalankan konektor TikTok di terminal komputer Anda:
+                    <div className="bg-slate-950 px-2 py-1.5 rounded-lg text-rose-300 font-mono text-[11px] my-1 border border-rose-900/40">
+                      npm run tiktok
+                    </div>
+                  </li>
+                  <li>Masukkan <strong>Username Akun TikTok</strong> Anda yang sedang Live di bawah.</li>
+                  <li>Klik tombol <strong>Hubungkan TikTok Live</strong>. Komentar dan gift akan otomatis masuk!</li>
+                </ol>
+              </div>
+
+              <form onSubmit={handleConnectTiktok} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 font-sans">
+                    Username TikTok (Sedang Live)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-2.5 text-slate-500 text-sm font-bold">@</span>
+                    <input
+                      type="text"
+                      placeholder="contoh: akun_live_kamu"
+                      value={ttUser}
+                      onChange={(e) => setTtUser(e.target.value.replace(/^@/, ''))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-rose-500 font-sans"
+                    />
+                  </div>
+                </div>
+
+                {/* Status TikTok Bridge */}
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-xs font-sans">
+                    <span className="text-slate-400">Status: </span>
+                    <span className={`font-bold ${
+                      tiktokStatus.status === 'connected'
+                        ? 'text-emerald-400'
+                        : tiktokStatus.status === 'error'
+                        ? 'text-rose-400'
+                        : tiktokStatus.status === 'bridge_connected'
+                        ? 'text-amber-300'
+                        : 'text-slate-400'
+                    }`}>
+                      {tiktokStatus.message || 'Bridge offline (Jalankan npm run tiktok)'}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {tiktokStatus.status === 'connected' ? (
+                      <button
+                        type="button"
+                        onClick={onDisconnectTiktok}
+                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-rose-400 border border-rose-900/40 rounded-xl text-xs font-bold cursor-pointer font-sans"
+                      >
+                        Putuskan
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold cursor-pointer font-sans shadow-md"
+                      >
+                        Hubungkan TikTok Live
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* TAB 2: FACEBOOK LIVE */}
           {activeTab === 'facebook' && (
             <form onSubmit={handleSaveFb} className="space-y-4">
               <div className="bg-indigo-950/30 border border-indigo-500/30 rounded-2xl p-3.5 text-xs text-indigo-200 font-sans leading-relaxed flex items-start gap-2.5">
@@ -240,7 +359,7 @@ export function SettingsModal({
                       onClick={onStartFb}
                       className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold cursor-pointer font-sans"
                     >
-                      Mulai Deteksi Live
+                      Mulai Deteksi FB
                     </button>
                   )}
                 </div>
@@ -248,7 +367,7 @@ export function SettingsModal({
             </form>
           )}
 
-          {/* TAB 2: VOICE OVER (TTS) */}
+          {/* TAB 3: VOICE OVER (TTS) */}
           {activeTab === 'voice' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
@@ -311,7 +430,7 @@ export function SettingsModal({
             </div>
           )}
 
-          {/* TAB 3: SIMULATOR (TEST KOMENTAR) */}
+          {/* TAB 4: SIMULATOR (TEST KOMENTAR) */}
           {activeTab === 'simulator' && (
             <div className="space-y-4">
               <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-2xl p-3 text-xs text-emerald-200 font-sans flex items-start gap-2">
